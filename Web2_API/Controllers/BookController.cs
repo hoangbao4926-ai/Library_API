@@ -1,0 +1,199 @@
+﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Web2_API.Data;
+using Web2_API.Models.Domain;
+using Web2_API.Models.DTO;
+
+namespace Web2_API.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class BooksController : ControllerBase
+    {
+        private readonly AppDbContext _dbContext;
+
+        public BooksController(AppDbContext dbContext)
+        {
+            _dbContext = dbContext;
+        }
+
+        // 1. GET ALL BOOKS
+        // GET http://localhost:port/api/Books/get-all-books
+        [HttpGet("get-all-books")]
+        public IActionResult GetAll()
+        {
+            var allBooksDomain = _dbContext.Books;
+
+            var allBooksDTO = allBooksDomain.Select(Books => new BookWithAuthorAndPublisherDTO()
+            {
+                Id = Books.Id,
+                Title = Books.Title,
+                Description = Books.Description,
+                IsRead = Books.IsRead,
+                DateRead = Books.IsRead ? Books.DateRead.Value : null,
+                Rate = Books.IsRead ? Books.Rate.Value : null,
+                Genre = Books.Genre,
+                CoverUrl = Books.CoverUrl,
+                PublisherName = Books.Publisher.Name,
+                AuthorNames = Books.Book_Authors.Select(n => n.Author.FullName).ToList()
+            }).ToList();
+
+            return Ok(allBooksDTO);
+        }
+
+        // 2. GET BOOK BY ID
+        // GET http://localhost:port/api/Books/get-book-by-id/{id}
+        [HttpGet]
+        [Route("get-book-by-id/{id:int}")]
+        public IActionResult GetBookById([FromRoute] int id)
+        {
+            var bookDomain = _dbContext.Books
+                .Include(b => b.Publisher)
+                .Include(b => b.Book_Authors)
+                .ThenInclude(ba => ba.Author)
+                .FirstOrDefault(b => b.Id == id);
+
+            if (bookDomain == null)
+            {
+                return NotFound(new { message = "Không tìm thấy sách" });
+            }
+
+            var bookDTO = new BookWithAuthorAndPublisherDTO()
+            {
+                Id = bookDomain.Id,
+                Title = bookDomain.Title,
+                Description = bookDomain.Description,
+                IsRead = bookDomain.IsRead,
+                DateRead = bookDomain.DateRead,
+                Rate = bookDomain.Rate,
+                Genre = bookDomain.Genre,
+                CoverUrl = bookDomain.CoverUrl,
+                DateAdded = bookDomain.DateAdded,
+                PublisherName = bookDomain.Publisher != null ? bookDomain.Publisher.Name : "Unknown",
+                AuthorNames = bookDomain.Book_Authors?.Where(y => y.Author != null).Select(y => y.Author.FullName).ToList() ?? new List<string>()
+            };
+
+            return Ok(bookDTO);
+        }
+
+        // 3. ADD BOOK
+        // POST http://localhost:port/api/Books/add-book
+        [HttpPost("add-book")]
+        public IActionResult AddBook([FromBody] AddBookRequestDTO addBookRequestDTO)
+        {
+            var publisherDomain = _dbContext.Publishers.FirstOrDefault(x => x.Id == addBookRequestDTO.PublisherID);
+            if (publisherDomain == null)
+            {
+                return NotFound(new { message = "Không tìm thấy NXB" });
+            }
+
+            var bookDomain = new Book()
+            {
+                Title = addBookRequestDTO.Title,
+                Description = addBookRequestDTO.Description,
+                IsRead = addBookRequestDTO.IsRead,
+                DateRead = addBookRequestDTO.DateRead,
+                Rate = addBookRequestDTO.Rate,
+                Genre = addBookRequestDTO.Genre,
+                CoverUrl = addBookRequestDTO.CoverUrl,
+                DateAdded = addBookRequestDTO.DateAdded,
+                PublisherID = publisherDomain.Id
+            };
+
+            _dbContext.Books.Add(bookDomain);
+            _dbContext.SaveChanges();
+
+            foreach (var authorId in addBookRequestDTO.AuthorIds)
+            {
+                var authorDomain = _dbContext.Authors.FirstOrDefault(x => x.Id == authorId);
+                if (authorDomain == null)
+                {
+                    return NotFound(new { message = "Không tìm thấy tác giả" });
+                }
+
+                var bookAuthorDomain = new Book_Author()
+                {
+                    BookId = bookDomain.Id,
+                    AuthorId = authorDomain.Id
+                };
+                _dbContext.Book_Authors.Add(bookAuthorDomain);
+                _dbContext.SaveChanges();
+            }
+
+            return Ok();
+        }
+
+        // 4. UPDATE BOOK BY ID
+        // PUT http://localhost:port/api/Books/update-book-by-id/{id}
+        [HttpPut("update-book-by-id/{id:int}")]
+        public IActionResult UpdateBookById(int id, [FromBody] AddBookRequestDTO addBookRequestDTO)
+        {
+            var bookDomain = _dbContext.Books.FirstOrDefault(x => x.Id == id);
+            if (bookDomain != null)
+            {
+                bookDomain.Title = addBookRequestDTO.Title;
+                bookDomain.Description = addBookRequestDTO.Description;
+                bookDomain.IsRead = addBookRequestDTO.IsRead;
+                bookDomain.DateRead = addBookRequestDTO.DateRead;
+                bookDomain.Rate = addBookRequestDTO.Rate;
+                bookDomain.Genre = addBookRequestDTO.Genre;
+                bookDomain.CoverUrl = addBookRequestDTO.CoverUrl;
+                bookDomain.DateAdded = addBookRequestDTO.DateAdded;
+                bookDomain.PublisherID = addBookRequestDTO.PublisherID;
+
+                _dbContext.SaveChanges();
+            }
+
+            var existingBookAuthors = _dbContext.Book_Authors.Where(x => x.BookId == id).ToList();
+            if (existingBookAuthors != null && existingBookAuthors.Count > 0)
+            {
+                _dbContext.Book_Authors.RemoveRange(existingBookAuthors);
+                _dbContext.SaveChanges();
+            }
+
+            foreach (var authorId in addBookRequestDTO.AuthorIds)
+            {
+                var authorDomain = _dbContext.Authors.FirstOrDefault(x => x.Id == authorId);
+                if (authorDomain == null)
+                {
+                    return NotFound(new { message = "Không tìm thấy tác giả" });
+                }
+
+                var bookAuthorDomain = new Book_Author()
+                {
+                    BookId = bookDomain.Id,
+                    AuthorId = authorDomain.Id
+                };
+                _dbContext.Book_Authors.Add(bookAuthorDomain);
+                _dbContext.SaveChanges();
+            }
+
+            return Ok(addBookRequestDTO);
+        }
+
+        // 5. DELETE BOOK BY ID
+        // DELETE http://localhost:port/api/Books/delete-book-by-id/{id}
+        [HttpDelete("delete-book-by-id/{id:int}")]
+        public IActionResult DeleteBookById(int id)
+        {
+            var bookDomain = _dbContext.Books.FirstOrDefault(x => x.Id == id);
+            if (bookDomain == null)
+            {
+                return NotFound(new { message = "Không tìm thấy sách" });
+            }
+
+            var existingBookAuthors = _dbContext.Book_Authors.Where(x => x.BookId == id).ToList();
+            if (existingBookAuthors != null && existingBookAuthors.Count > 0)
+            {
+                _dbContext.Book_Authors.RemoveRange(existingBookAuthors);
+                _dbContext.SaveChanges();
+            }
+
+            _dbContext.Books.Remove(bookDomain);
+            _dbContext.SaveChanges();
+
+            return Ok(bookDomain);
+        }
+    }
+}
