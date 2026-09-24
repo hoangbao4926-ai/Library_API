@@ -15,7 +15,7 @@ namespace Web2_API.Models.Domain
         public string? CoverUrl { get; set; }
         public DateTime DateAdded { get; set; }
 
-        //Navigation Properties - One publisher has many books
+    
         public int PublisherID { get; set; }
         public Publisher Publisher { get; set; }
 
