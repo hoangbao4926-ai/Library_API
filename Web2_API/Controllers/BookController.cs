@@ -18,8 +18,6 @@ namespace Web2_API.Controllers
             _dbContext = dbContext;
         }
 
-        // 1. GET ALL BOOKS
-        // GET http://localhost:port/api/Books/get-all-books
         [HttpGet("get-all-books")]
         public IActionResult GetAll()
         {
@@ -42,8 +40,6 @@ namespace Web2_API.Controllers
             return Ok(allBooksDTO);
         }
 
-        // 2. GET BOOK BY ID
-        // GET http://localhost:port/api/Books/get-book-by-id/{id}
         [HttpGet]
         [Route("get-book-by-id/{id:int}")]
         public IActionResult GetBookById([FromRoute] int id)
@@ -77,8 +73,6 @@ namespace Web2_API.Controllers
             return Ok(bookDTO);
         }
 
-        // 3. ADD BOOK
-        // POST http://localhost:port/api/Books/add-book
         [HttpPost("add-book")]
         public IActionResult AddBook([FromBody] AddBookRequestDTO addBookRequestDTO)
         {
@@ -124,8 +118,6 @@ namespace Web2_API.Controllers
             return Ok();
         }
 
-        // 4. UPDATE BOOK BY ID
-        // PUT http://localhost:port/api/Books/update-book-by-id/{id}
         [HttpPut("update-book-by-id/{id:int}")]
         public IActionResult UpdateBookById(int id, [FromBody] AddBookRequestDTO addBookRequestDTO)
         {
@@ -172,9 +164,7 @@ namespace Web2_API.Controllers
             return Ok(addBookRequestDTO);
         }
 
-        // 5. DELETE BOOK BY ID
-        // DELETE http://localhost:port/api/Books/delete-book-by-id/{id}
-        [HttpDelete("delete-book-by-id/{id:int}")]
+        [HttpDelete("delete-book-by-id/{id}")]
         public IActionResult DeleteBookById(int id)
         {
             var bookDomain = _dbContext.Books.FirstOrDefault(x => x.Id == id);
