@@ -10,7 +10,9 @@ using Web2_API.Repository;
 
 namespace Web2_API.Controllers
 {
+
     [Route("api/[controller]")]
+    [Authorize]
     [ApiController]
     public class BooksController : ControllerBase
     {
@@ -22,7 +24,7 @@ namespace Web2_API.Controllers
             _dbContext = dbContext;
             _bookRepository = bookRepository;
         }
-
+        [AllowAnonymous]
         [HttpGet("get-all-books")]
         public IActionResult GetAll([FromQuery] string? filterOn, [FromQuery] string? filterQuery,
 [FromQuery] string? sortBy, [FromQuery] bool isAscending,
@@ -43,7 +45,7 @@ namespace Web2_API.Controllers
         }
         [HttpPost("add-book")]
         [ValidateModel]
-        [Authorize(Roles = "Write")]
+
         public IActionResult AddBook([FromBody] AddBookRequestDTO addBookRequestDTO)
         {
             if (ValidateAddBook(addBookRequestDTO))
@@ -74,32 +76,44 @@ namespace Web2_API.Controllers
                 ModelState.AddModelError(nameof(addBookRequestDTO), "Please add book data");
                 return false;
             }
-
-            // Kiểm tra Description NotNull / NotEmpty
+            var publisherExists = _dbContext.Publishers.Any(p => p.Id == addBookRequestDTO.PublisherID);
+            if (!publisherExists)
+            {
+                ModelState.AddModelError(nameof(addBookRequestDTO.PublisherID),
+                    $"Publisher với ID {addBookRequestDTO.PublisherID} không tồn tại trong hệ thống.");
+            }
+            if (addBookRequestDTO.AuthorIds != null && addBookRequestDTO.AuthorIds.Any())
+            {
+                if (addBookRequestDTO.AuthorIds.Count != addBookRequestDTO.AuthorIds.Distinct().Count())
+                {
+                    ModelState.AddModelError(nameof(addBookRequestDTO.AuthorIds), "Không được phép gán trùng lặp cùng một Tác giả nhiều lần.");
+                }
+                foreach (var authorId in addBookRequestDTO.AuthorIds)
+                {
+                    var authorExists = _dbContext.Authors.Any(a => a.Id == authorId);
+                    if (!authorExists)
+                    {
+                        ModelState.AddModelError(nameof(addBookRequestDTO.AuthorIds), $"Tác giả với ID {authorId} không tồn tại trong hệ thống.");
+                    }
+                }
+            }
             if (string.IsNullOrEmpty(addBookRequestDTO.Description))
             {
-                ModelState.AddModelError(
-                    nameof(addBookRequestDTO.Description),
-                    $"{nameof(addBookRequestDTO.Description)} cannot be null"
-                );
+                ModelState.AddModelError(nameof(addBookRequestDTO.Description), $"{nameof(addBookRequestDTO.Description)} cannot be null");
             }
-
-            // Kiểm tra Rating trong khoảng [0, 5]
             if (addBookRequestDTO.Rate < 0 || addBookRequestDTO.Rate > 5)
             {
-                ModelState.AddModelError(
-                    nameof(addBookRequestDTO.Rate),
-                    $"{nameof(addBookRequestDTO.Rate)} cannot be less than 0 and more than 5"
-                );
+                ModelState.AddModelError(nameof(addBookRequestDTO.Rate), $"{nameof(addBookRequestDTO.Rate)} cannot be less than 0 and more than 5");
             }
 
-            // Nếu có bất kỳ lỗi nào được ghi nhận vào ModelState
             if (ModelState.ErrorCount > 0)
             {
                 return false;
             }
 
             return true;
+        
+        
         }
     }
 }

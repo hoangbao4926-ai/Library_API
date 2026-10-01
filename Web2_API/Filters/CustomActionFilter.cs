@@ -8,10 +8,6 @@ namespace Web2_API.Filters
         {
             public override void OnActionExecuting(ActionExecutingContext context)
             {
-                if (context.ModelState.IsValid == false)
-                {
-                    context.Result = new BadRequestResult();
-                }
             }
         }
     }
